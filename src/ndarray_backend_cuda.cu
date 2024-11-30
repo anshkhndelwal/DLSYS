@@ -218,7 +218,7 @@ __global__ void EwiseSinKernel(const scalar_t* a, scalar_t* out, size_t size)
 }
 
 void EwiseSin(const CudaArray& a, CudaArray* out) {
-  
+
   CudaDims dim = CudaOneDim(out->size);
   EwiseSinKernel<<<dim.grid, dim.block>>>(a.ptr, out->ptr, out->size);
 }
@@ -234,11 +234,10 @@ __global__ void EwiseCosKernel(const scalar_t* a, scalar_t* out, size_t size)
 }
 
 void EwiseCos(const CudaArray& a, CudaArray* out) {
-  
+
   CudaDims dim = CudaOneDim(out->size);
   EwiseCosKernel<<<dim.grid, dim.block>>>(a.ptr, out->ptr, out->size);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 // Elementwise and scalar operations

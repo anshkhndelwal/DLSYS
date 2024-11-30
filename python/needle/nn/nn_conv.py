@@ -1,3 +1,4 @@
+
 """The module.
 """
 from typing import List, Callable, Any
@@ -26,49 +27,35 @@ class Conv(Module):
         self.out_channels = out_channels
         self.kernel_size = kernel_size
         self.stride = stride
-
-        ### BEGIN YOUR SOLUTION
-        self.weight = Parameter(
-            init.kaiming_uniform(
-                self.kernel_size**2 * self.in_channels,
-                self.kernel_size**2 * self.out_channels,
-                shape=(
-                    self.kernel_size,
-                    self.kernel_size,
-                    self.in_channels,
-                    self.out_channels,
-                ),
-            ),
-            dtype=dtype,
+        
+        self.weight = Parameter(init.kaiming_uniform(fan_in=(kernel_size ** 2) * in_channels,fan_out=(kernel_size ** 2) * out_channels,
+            shape=(kernel_size, kernel_size, in_channels, out_channels),
             device=device,
-            requires_grad=True,
-        )
-        bound = 1 / (self.in_channels * self.kernel_size**2) ** 0.5
+            dtype=dtype
+        ))
+        self.padding = (kernel_size - 1) // 2
         if bias:
-            self.bias = Parameter(
-                init.rand(
-                    self.out_channels,
-                    low=-bound,
-                    high=bound,
-                    device=device,
-                    dtype=dtype,
-                    requires_grad=True,
-                )
-            )
+            self.bias = Parameter(init.rand(
+                self.out_channels,
+                low=-(1.0 / (in_channels * kernel_size ** 2) ** 0.5),
+                high=1.0 / (in_channels * kernel_size ** 2) ** 0.5,
+                device=device,
+                dtype=dtype
+            ))
         else:
             self.bias = None
-        ### END YOUR SOLUTION
+        
+        return
 
-    def forward(self, x: Tensor) -> Tensor:  # x: NCHW
-        ### BEGIN YOUR SOLUTION
-        nchw_x = ops.transpose(ops.transpose(x, (1, 2)), (2, 3))
-        nchw_out = ops.conv(
-            nchw_x, self.weight, stride=self.stride, padding=(self.kernel_size) // 2
+    def forward(self, x: Tensor) -> Tensor:
+
+        output_nchw = ops.conv(
+            ops.transpose(ops.transpose(x, (1, 2)), (2, 3)), 
+            self.weight, 
+            stride=self.stride, 
+            padding=(self.kernel_size) // 2
         )
         if self.bias:
-            nchw_out += self.bias.reshape((1, 1, 1, self.out_channels)).broadcast_to(
-                nchw_out.shape
-            )
-        nhwc_out = ops.transpose(ops.transpose(nchw_out, (2, 3)), (1, 2))
-        return nhwc_out
-        ### END YOUR SOLUTION
+            output_nchw = output_nchw + self.bias.reshape((1, 1, 1, self.out_channels)).broadcast_to(output_nchw.shape)
+        return ops.transpose(ops.transpose(output_nchw, (2, 3)), (1, 2))
+        

@@ -167,6 +167,18 @@ void ScalarAdd(const AlignedArray& a, scalar_t val, AlignedArray* out) {
   }
 }
 
+void EwiseSin(const AlignedArray& a, AlignedArray* out) {
+  for (size_t i = 0; i < a.size; i++) {
+    out->ptr[i] = sin(a.ptr[i]); //*3.14159/180); 
+  }
+}
+
+void EwiseCos(const AlignedArray& a, AlignedArray* out) {
+  for (size_t i = 0; i < a.size; i++) {
+    out->ptr[i] = cos(a.ptr[i]); //*3.14159/180); 
+  }
+}
+
 
 /**
  * In the code the follows, use the above template to create analogous element-wise
@@ -462,6 +474,9 @@ PYBIND11_MODULE(ndarray_backend_cpu, m) {
 
   m.def("reduce_max", ReduceMax);
   m.def("reduce_sum", ReduceSum);
+
+  m.def("ewise_cos",EwiseCos);
+  m.def("ewise_sin",EwiseSin);
 }
 
 // /**

@@ -180,7 +180,30 @@ def epoch_general_ptb(data, model, seq_len=40, loss_fn=nn.SoftmaxLoss(), opt=Non
     """
     np.random.seed(4)
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    if opt:
+      model.train() 
+    else:
+      model.eval()
+    t_loss = 0 
+    t_correct = 0 
+    t_samples = 0
+    hidden = None
+    for i in range(0, data.shape[0] - 1, seq_len):
+        x, y = ndl.data.get_batch(data, i, seq_len, device=device, dtype=dtype)
+        pred_y, hidden = model(x, hidden)
+        if isinstance(hidden, tuple):
+          hidden = tuple(h.detach() for h in hidden)
+        else:
+          hidden = hidden.detach()
+        loss = loss_fn(pred_y, y)
+        if opt:
+            opt.reset_grad()
+            loss.backward()
+            opt.step()
+        t_samples += y.shape[0]
+        t_loss += loss.numpy() * y.shape[0]
+        t_correct += np.sum(pred_y.numpy().argmax(axis=1) == y.numpy())
+    return t_correct / t_samples, t_loss / t_samples
     ### END YOUR SOLUTION
 
 
@@ -207,7 +230,11 @@ def train_ptb(model, data, seq_len=40, n_epochs=1, optimizer=ndl.optim.SGD,
     """
     np.random.seed(4)
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    optim = optimizer(model.parameters(), lr = lr, weight_decay = weight_decay)
+    for _ in range(n_epochs):
+      avg_acc, avg_loss = epoch_general_ptb(data, model, seq_len=seq_len, loss_fn=loss_fn(), opt=optim, device=device, dtype=dtype)
+
+    return avg_acc, avg_loss
     ### END YOUR SOLUTION
 
 def evaluate_ptb(model, data, seq_len=40, loss_fn=nn.SoftmaxLoss,
@@ -227,7 +254,7 @@ def evaluate_ptb(model, data, seq_len=40, loss_fn=nn.SoftmaxLoss,
     """
     np.random.seed(4)
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    return epoch_general_ptb(data, model, seq_len=seq_len, loss_fn=loss_fn(), opt=None, device=device, dtype=dtype)
     ### END YOUR SOLUTION
 
 ### CODE BELOW IS FOR ILLUSTRATION, YOU DO NOT NEED TO EDIT

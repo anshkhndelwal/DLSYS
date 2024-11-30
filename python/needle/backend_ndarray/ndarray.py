@@ -247,11 +247,6 @@ class NDArray:
         """
 
         ### BEGIN YOUR SOLUTION
-        if prod(new_shape) != prod(self._shape):
-            raise ValueError("Err: Product of current shape is not equal to the product of the new shape")
-        if not self.is_compact():
-            raise ValueError("Err: Matrix is not compact")
-
         return NDArray.make(new_shape, NDArray.compact_strides(new_shape), self._device, self._handle)
         ### END YOUR SOLUTION
 
@@ -382,20 +377,19 @@ class NDArray:
         assert len(idxs) == self.ndim, "Need indexes equal to number of dimensions"
 
         ### BEGIN YOUR SOLUTION
-        shape = []
-        for idx in idxs:
-            shape.append(math.ceil((idx.stop - idx.start) / idx.step))
-        shape = tuple(shape)
-        strides = []
-        for i in range(self.ndim):
-            strides.append(self.strides[i] * idxs[i].step)
-        strides = tuple(strides)
-        
-        extra = 0
-        for i in range(self.ndim):
-            extra += self.strides[i] * idxs[i].start
 
-        return NDArray.make( shape, strides, self._device, self._handle, extra)
+        new_shape = []
+        for idx in idxs:
+            size = math.ceil((idx.stop - idx.start) / idx.step)
+            new_shape.append(size)
+        strides = []
+        for i, idx in enumerate(idxs):
+            stride = self.strides[i] * idx.step
+            strides.append(stride)
+            offset = 0
+            for i in range(self.ndim):
+                offset += self.strides[i] * idxs[i].start
+        return NDArray.make(tuple(new_shape), tuple(strides), self._device, self._handle, offset)
         ### END YOUR SOLUTION
 
     def __setitem__(self, idxs, other):
@@ -472,11 +466,30 @@ class NDArray:
         out = NDArray.make(self.shape, device=self.device)
         self.device.ewise_cos(self.compact()._handle, out._handle)
         return out
-
+    
     def __pow__(self, other):
         out = NDArray.make(self.shape, device=self.device)
         self.device.scalar_power(self.compact()._handle, other, out._handle)
         return out
+
+    def complex_mul(self, other):
+        corr = self * other
+        r1c2 = self[:, :, 0] * other[:, :, 1]
+        r2c1 = self[:, :, 1] * other[:, :, 0]
+
+        out = full(self.shape, 0, self.dtype, self.device)
+        out[:, :, 0] = corr[:, :, 0] - corr[:, :, 1]
+        out[:, :, 1] = r1c2 + r2c1
+
+        return out
+
+    def complex_exp(self):
+        out = full(self.shape, 0, self.dtype, self.device)
+        exp_term = self[:, :, 0].exp()
+        # out[:, 0] = exp_term * self[:, :, 1].cos()
+        # out[:, 0] = exp_term * self[:, :, 1].sin()
+        out[:, :, 0] = exp_term * NDArray(np.cos(self[:, :, 1].numpy()), device = self.device)
+        out[:, :, 1] = exp_term * NDArray(np.sin(self[:, :, 1].numpy()), device = self.device)
 
     def maximum(self, other):
         return self.ewise_or_scalar(
@@ -518,25 +531,6 @@ class NDArray:
         out = NDArray.make(self.shape, device=self.device)
         self.device.ewise_tanh(self.compact()._handle, out._handle)
         return out
-
-    def complex_mul(self, other):
-        corr = self * other
-        r1c2 = self[:, :, 0] * other[:, :, 1]
-        r2c1 = self[:, :, 1] * other[:, :, 0]
-
-        out = full(self.shape, 0, self.dtype, self.device)
-        out[:, :, 0] = corr[:, :, 0] - corr[:, :, 1]
-        out[:, :, 1] = r1c2 + r2c1
-
-        return out
-
-    def complex_exp(self):
-        out = full(self.shape, 0, self.dtype, self.device)
-        exp_term = self[:, :, 0].exp()
-        # out[:, 0] = exp_term * self[:, :, 1].cos()
-        # out[:, 0] = exp_term * self[:, :, 1].sin()
-        out[:, :, 0] = exp_term * NDArray(np.cos(self[:, :, 1].numpy()), device = self.device)
-        out[:, :, 1] = exp_term * NDArray(np.sin(self[:, :, 1].numpy()), device = self.device)
 
     ### Matrix multiplication
     def __matmul__(self, other):
@@ -590,7 +584,8 @@ class NDArray:
                 self.compact()._handle, other.compact()._handle, out._handle, m, n, p
             )
             return out
-
+    def squeeze(self):
+        return self.reshape(tuple(i for i in self.shape if i != 1)).compact()
     ### Reductions, i.e., sum/max over all element or over given axis
     def reduce_view_out(self, axis, keepdims=False):
         """ Return a view to the array set up for reduction functions and output array. """
@@ -622,9 +617,6 @@ class NDArray:
         view, out = self.reduce_view_out(axis, keepdims=keepdims)
         self.device.reduce_sum(view.compact()._handle, out._handle, view.shape[-1])
         return out
-
-    def squeeze(self):
-        return self.reshape(tuple(i for i in self.shape if i != 1)).compact()
 
     def max(self, axis=None, keepdims=False):
         view, out = self.reduce_view_out(axis, keepdims=keepdims)
@@ -658,7 +650,6 @@ class NDArray:
         axes = ( (0, 0), (1, 1), (0, 0)) pads the middle axis with a 0 on the left and right side.
         """
         ### BEGIN YOUR SOLUTION
-        
         new_shape = tuple([dim + axes[i][0] + axes[i][1] for i, dim in enumerate(self.shape)])
         out = self.device.full(shape=new_shape, fill_value=0)
         slices = []
@@ -689,6 +680,10 @@ def full(shape, fill_value, dtype="float32", device=None):
     return device.full(shape, fill_value, dtype)
 
 
+
+def squeeze(a):
+    return a.squeeze()
+
 def broadcast_to(array, new_shape):
     return array.broadcast_to(new_shape)
 
@@ -699,9 +694,6 @@ def reshape(array, new_shape):
 
 def maximum(a, b):
     return a.maximum(b)
-
-def squeeze(a):
-    return a.squeeze()
 
 def permute(array, axes):
     return array.permute(axes)
@@ -727,3 +719,9 @@ def sum(a, axis=None, keepdims=False):
 
 def flip(a, axes):
     return a.flip(axes)
+
+
+
+
+
+

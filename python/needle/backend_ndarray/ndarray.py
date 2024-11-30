@@ -463,6 +463,16 @@ class NDArray:
     def __neg__(self):
         return self * (-1)
 
+    def sin(self):
+        out = NDArray.make(self.shape, device=self.device)
+        self.device.ewise_sin(self.compact()._handle, out._handle)
+        return out
+
+    def cos(self):
+        out = NDArray.make(self.shape, device=self.device)
+        self.device.ewise_cos(self.compact()._handle, out._handle)
+        return out
+
     def __pow__(self, other):
         out = NDArray.make(self.shape, device=self.device)
         self.device.scalar_power(self.compact()._handle, other, out._handle)
@@ -508,6 +518,25 @@ class NDArray:
         out = NDArray.make(self.shape, device=self.device)
         self.device.ewise_tanh(self.compact()._handle, out._handle)
         return out
+
+    def complex_mul(self, other):
+        corr = self * other
+        r1c2 = self[:, :, 0] * other[:, :, 1]
+        r2c1 = self[:, :, 1] * other[:, :, 0]
+
+        out = full(self.shape, 0, self.dtype, self.device)
+        out[:, :, 0] = corr[:, :, 0] - corr[:, :, 1]
+        out[:, :, 1] = r1c2 + r2c1
+
+        return out
+
+    def complex_exp(self):
+        out = full(self.shape, 0, self.dtype, self.device)
+        exp_term = self[:, :, 0].exp()
+        # out[:, 0] = exp_term * self[:, :, 1].cos()
+        # out[:, 0] = exp_term * self[:, :, 1].sin()
+        out[:, :, 0] = exp_term * NDArray(np.cos(self[:, :, 1].numpy()), device = self.device)
+        out[:, :, 1] = exp_term * NDArray(np.sin(self[:, :, 1].numpy()), device = self.device)
 
     ### Matrix multiplication
     def __matmul__(self, other):
